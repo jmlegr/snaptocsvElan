@@ -3,6 +3,7 @@ const url = 'mongodb://localhost:27017'
 const dbName = 'sierpinski_db';
 const coll = 'reconstructions';
 const {parse} = require('json2csv');
+const fs = require('fs');
 var readlineSync = require('readline-sync');
 //const fields = ['field1', 'field2', 'field3'];
 //const opts = { fields };
@@ -17,13 +18,37 @@ async function run() {
         const collection = database.collection(coll);
 
         const filter = {session_key: 'wq2cu9duflxspderesgz57qr8t05w8jf', 'commandes.epr': {$ne: null}}
-        const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
-        //const offset_temps = 1000000; //décalage temporel pour synchronisation
-        const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
-        //const duree = 1000; //dureee de base d'un evenement pour ELAN
-        const nomFic=readlineSync.question("Nom de fichier csv? ");
-        //const nomFic="testruc";
-        const agg = [
+        //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
+        const offset_temps = 1000000; //décalage temporel pour synchronisation
+        //const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
+        const duree = 1000; //dureee de base d'un evenement pour ELAN
+        //const nomFic=readlineSync.question("Nom de fichier csv? ");
+        const nomFic="testruc";
+        fs.writeFileSync(nomFic+".csv", '');
+        const aggENV = [
+            {
+                '$match': {
+                    'session_key': 'wq2cu9duflxspderesgz57qr8t05w8jf',
+                    'commandes.evt.evenement_type': 'ENV'
+                }
+            },{
+                '$addFields': {
+                    'temps_adjust': {
+                        '$add': [
+                            '$commandes.temps', offset_temps
+                        ]
+                    },
+                    'acteur':'LOAD/SAVE',
+                    'annotation': {
+                        $concat: [
+                            '$commandes.evt.type', '-', '$commandes.evt.detail']
+                    }
+                }
+            }, {
+                '$project': {'commandes':0}
+            }
+        ];
+        const aggEPR = [
             {
                 '$match': {
                     'session_key': 'wq2cu9duflxspderesgz57qr8t05w8jf',
@@ -45,40 +70,57 @@ async function run() {
                         '$concat': [
                             '$commandes.epr.type', '--', '$commandes.epr.detail'
                         ]
-                    }
+                    },
+                    'acteur':'$commandes.epr.detail',
+                    'annotation':'$commandes.evt.type'
                 }
+            },{
+                '$project': {'commandes':0}
             }
         ];
         const epr_max = await collection.findOne({}, {sort: {etape: -1}});
         const t_max = epr_max.commandes.temps + offset_temps; //temps de la dernièreaction EPR (normalement SNP+SAVE)
         //console.log("MAX TERMPS", t_max)
-        collection.aggregate(agg).toArray().then(r => {
+        //traitement des lancements/arrêts
+        const promise1=collection.aggregate(aggEPR).toArray().then(r => {
                 //construction du temps de fin de l'action
                 r.forEach((c, i, a) => {
-                    if (c.commandes.epr.type == "START" || c.commandes.epr.type == "REPR" || c.commandes.epr.type == "PAUSE") {
+                   // if (c.commandes.epr.type == "START" || c.commandes.epr.type == "REPR" || c.commandes.epr.type == "PAUSE") {
+                    if (c.annotation=='START' || c.annotation=='EPR' || c.annotation=='PAUSE') {
                         c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
                     } else {
                         c.temps_fin = Math.min(c.temps_adjust + duree, i < a.length ? a[i + 1].temps_adjust : t_max);
                     }
-                    console.log(c.etape, c.commandes.epr.type, c.temps_adjust, c.temps_fin)
+                    //console.log(c.etape,  c.acteur, c.temps_adjust, c.temps_fin,c.annotation)
                 });
                 return r;
             }
-        ).then(result => {
-            const fs = require('fs');
+        );
+        //traitement des chargements/sauvegardes
+        const promise2=collection.aggregate(aggENV).toArray().then(r => {
+            r.forEach(c=>{
+                c.temps_fin=Math.min(c.temps_adjust+duree,t_max)
+                //console.log(c.etape,c.acteur,c.temps_adjust,c.temps_fin,c.annotation)
+            });
+            return r;
+        })
+        const tocsv=result => {
             try {
                 const csv = parse(result, {
-                    fields: ["commandes.epr.detail",
+                    fields: ["acteur",
                         "temps_adjust", "temps_fin",
-                        "commandes.epr.type"]
+                        "annotation"],
+                    header: false,
                 });
-                fs.writeFileSync(nomFic+".csv", csv);
-                console.log(csv);
+                //fs.writeFileSync(nomFic+".csv", csv);
+                fs.appendFileSync(nomFic+".csv", csv+'\n');
+                //console.log(csv);
             } catch (err) {
                 console.error(err);
             }
-        })
-
+        };
+        promise1.then(tocsv);
+        promise2.then(tocsv);
     } finally {
         await client.close()
 
