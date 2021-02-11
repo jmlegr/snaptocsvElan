@@ -22,6 +22,7 @@ async function run() {
         const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
         //const duree = 1000; //dureee de base d'un evenement pour ELAN
         const nomFic=readlineSync.question("Nom de fichier csv? ");
+        //const nomFic="testruc";
         const agg = [
             {
                 '$match': {
