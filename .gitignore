@@ -1,1 +1,15 @@
 /node_modules/
+
+.idea/modules.xml
+
+package-lock.json
+
+*.csv
+
+.idea/jsLibraryMappings.xml
+
+.idea/tesmongo1.iml
+
+.idea/vcs.xml
+
+testfile.text
