@@ -5,11 +5,11 @@ const coll = 'reconstructions';
 const {parse} = require('json2csv');
 const fs = require('fs');
 const h2p = require('html2plaintext');
-var readlineSync = require('readline-sync');
+const readlineSync = require('readline-sync');
 //const fields = ['field1', 'field2', 'field3'];
 //const opts = { fields };
 
-const client = new MongoClient(url);
+const client = new MongoClient(url,{ useUnifiedTopology: true });
 
 async function run() {
     try {
@@ -18,14 +18,14 @@ async function run() {
         const database = client.db(dbName);
         const collection = database.collection(coll);
 
-        const session='9t2dta3yr5ft495kbpye61jl0fetalf8'
-        const filter = {session_key: session, 'commandes.epr': {$ne: null}}
-        //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
-        const offset_temps = 1000000; //décalage temporel pour synchronisation
-        //const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
-        const duree = 1000; //dureee de base d'un evenement pour ELAN
-        //const nomFic=readlineSync.question("Nom de fichier csv? ");
-        const nomFic="testruc";
+        //const session='9t2dta3yr5ft495kbpye61jl0fetalf8'
+        const session=readlineSync.question('Numéro de session:');
+        const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
+        //const offset_temps = 1000000; //décalage temporel pour synchronisation
+        const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
+        //const duree = 1000; //dureee de base d'un evenement pour ELAN
+        const nomFic=readlineSync.question("Nom de fichier csv? ");
+        //const nomFic="testruc";
         fs.writeFileSync(nomFic+".csv", '');
         const aggENV = [
             {
@@ -159,7 +159,7 @@ async function run() {
             });
             return r;
         })
-        const tocsv=result => {
+        const tocsvElan=result => {
             try {
                 const csv = parse(result, {
                     fields: ["acteur",
@@ -167,36 +167,46 @@ async function run() {
                         "annotation"],
                     header: false,
                 });
-                //fs.writeFileSync(nomFic+".csv", csv);
                 fs.appendFileSync(nomFic+".csv", csv+'\n');
-                //console.log(csv);
             } catch (err) {
                 console.error(err);
             }
         };
-        promise1.then(tocsv);
-        promise2.then(tocsv);
-        promise3.then(tocsv)
+        const tocsv=s=>result=> {
+            //idem tocsvElan mais dans un fichhier à part, %s complément de nom
+            try {
+                const csv = parse(result, {
+                    fields: ["acteur",
+                        "temps_adjust", "temps_fin",
+                        "annotation"],
+                    header: false,
+                });
+                fs.appendFileSync(nomFic+"_"+s+".csv", csv+'\n');
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        collection.findOne({session_key:session,commandes:{$exists:false}}).then(infos=> {
+            console.log("Traitement de la session:", session)
+            console.log(infos.user, " le ", infos.infos.date)
+            console.log("Type: ", infos.infos.type)
+            console.log("Base créée le ", infos.date)
+        })
+        promise1.then(tocsvElan);
+        promise2.then(tocsvElan);
+        promise3.then(tocsvElan);
+        promise3.then(tocsv("VAL"))
+        //console.log("wiat to finish")
+        await Promise.all([promise1,promise2,promise3])
+        //console.log("finished")
     } finally {
         await client.close()
+        console.log("Session closed.")
 
     }
 
-    /*
-    db.collection("reconstructions").aggregate(agg).toArray(function (err,result) {
-
-        if (err) throw err;
-        console.log("ok",result);
-        const fs=require('fs');
-        try {
-            const csv = parse(result,{fields:["commandes.temps","commandes.epr"]});
-            fs.writeFileSync("testcsv.csv",csv);
-            console.log(csv);
-        } catch (err) {
-            console.error(err);
-        }
-    })
-*/
 }
 
 run().catch(console.dir);
