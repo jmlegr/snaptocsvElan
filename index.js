@@ -28,7 +28,7 @@ async function run() {
         const aggENV = [
             {
                 '$match': {
-                    'session_key': 'wq2cu9duflxspderesgz57qr8t05w8jf',
+                    'session_key': 'iptrff5x17betctynr3xuwi19duaphy2',
                     'commandes.evt.evenement_type': 'ENV'
                 }
             },{
@@ -51,7 +51,7 @@ async function run() {
         const aggEPR = [
             {
                 '$match': {
-                    'session_key': 'wq2cu9duflxspderesgz57qr8t05w8jf',
+                    'session_key': 'iptrff5x17betctynr3xuwi19duaphy2',
                     'commandes.epr': {
                         '$ne': null
                     },
@@ -88,8 +88,13 @@ async function run() {
                    // if (c.commandes.epr.type == "START" || c.commandes.epr.type == "REPR" || c.commandes.epr.type == "PAUSE") {
                     if (c.annotation=='START' || c.annotation=='EPR' || c.annotation=='PAUSE') {
                         c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
+                    } else if (c.annotation=='ASK' || c.annotation=='ANSW') {
+                       // console.log("YOUYOU",c)
+                       c.annotation=c.annotation+" <<"+c.acteur+">>"
+                        c.acteur="ENTRÉES"
+                        c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
                     } else {
-                        c.temps_fin = Math.min(c.temps_adjust + duree, i < a.length ? a[i + 1].temps_adjust : t_max);
+                        c.temps_fin = Math.min(c.temps_adjust + duree, i +1< a.length ? a[i + 1].temps_adjust : t_max);
                     }
                     //console.log(c.etape,  c.acteur, c.temps_adjust, c.temps_fin,c.annotation)
                 });
