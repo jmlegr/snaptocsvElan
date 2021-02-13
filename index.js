@@ -18,7 +18,8 @@ async function run() {
         const database = client.db(dbName);
         const collection = database.collection(coll);
 
-        const filter = {session_key: 'wq2cu9duflxspderesgz57qr8t05w8jf', 'commandes.epr': {$ne: null}}
+        const session='9t2dta3yr5ft495kbpye61jl0fetalf8'
+        const filter = {session_key: session, 'commandes.epr': {$ne: null}}
         //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
         const offset_temps = 1000000; //décalage temporel pour synchronisation
         //const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
@@ -29,7 +30,7 @@ async function run() {
         const aggENV = [
             {
                 '$match': {
-                    'session_key': 'iptrff5x17betctynr3xuwi19duaphy2',
+                    'session_key': session,
                     'commandes.evt.evenement_type': 'ENV'
                 }
             },{
@@ -52,7 +53,7 @@ async function run() {
         const aggEPR = [
             {
                 '$match': {
-                    'session_key': 'iptrff5x17betctynr3xuwi19duaphy2',
+                    'session_key': session,
                     'commandes.epr': {
                         '$ne': null
                     },
@@ -81,7 +82,7 @@ async function run() {
         ];
         const aggVal=[
             {
-                '$match':{'session_key': 'iptrff5x17betctynr3xuwi19duaphy2','commandes.evt.type':/VAL/}
+                '$match':{'session_key': session,'commandes.evt.type':/VAL/}
             }, {
                 '$addFields': {
                     'temps_adjust': {
@@ -110,7 +111,6 @@ async function run() {
         const promise1=collection.aggregate(aggEPR).toArray().then(r => {
                 //construction du temps de fin de l'action
                 r.forEach((c, i, a) => {
-                   // if (c.commandes.epr.type == "START" || c.commandes.epr.type == "REPR" || c.commandes.epr.type == "PAUSE") {
                     if (c.annotation=='START' || c.annotation=='EPR' || c.annotation=='PAUSE') {
                         c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
                     } else if (c.annotation=='ASK' || c.annotation=='ANSW') {
@@ -138,9 +138,23 @@ async function run() {
             r.forEach((c,i,a)=>{
                 const el=c.commandes.snap.filter(s=> (s.change!=null && s.change.match(/val_/)))
                 el.forEach(e=>{
-                    //const a=e.change.match(/.*(<<.*>>).*/); //pour ajout ancienne valeur a?a[1]:''
+                    const a=e.change.match(/.*(<<.*>>).*/); //pour ajout ancienne valeur a?a[1]:''
                     c.annotation='('+c.annotation+'): '+h2p(e.commande);
-                    c.temps_fin=Math.min(c.temps_adjust+duree,t_max)
+                    c.temps_fin=Math.min(c.temps_adjust+duree,t_max);
+                    //traitement si on a une boucle: on recherche l'indice de la boucle et la tête de script
+                    // version simple, sans prise en compte de boucles imbriquées (sinon tester conteneurBlock?)
+                    if (e.commande.match(/répéter/)) {
+                        let instruction = e;
+                        let niveauCommande = 1;
+                        let niveauBoucle = 1;
+                        while (instruction.prevBlock != null) {
+                            instruction = c.commandes.snap.find(d => d.JMLid == instruction.prevBlock);
+                            niveauCommande += 1
+                            if (instruction.commande.match(/répéter/)) niveauBoucle += 1;
+                        }
+                        c.annotation = "i" + niveauCommande + "b" + niveauBoucle + c.annotation+ (a?a[1]:'')
+                        c.acteur = '(BOUCLE)'+h2p(instruction.commande)
+                    }
                 })
             });
             return r;
