@@ -1,3 +1,6 @@
+/*
+recupère la liste des selectors dans la base
+ */
 var MongoClient = require("mongodb").MongoClient;
 const url = 'mongodb://localhost:27017'
 const dbName = 'sierpinski_db';
@@ -18,13 +21,11 @@ async function run() {
         await client.connect();
         const database = client.db(dbName);
         const collection = database.collection(coll);
-        const filter={session_key: '9t2dta3yr5ft495kbpye61jl0fetalf8','commandes.evt.type':/VAL/}
-        /*
-         * Requires the MongoDB Node.js Driver
-         * https://mongodb.github.io/node-mongodb-native
-         */
 
         const agg = [
+            {
+                '$match': {}
+            },
             {
                 '$project': {
                     'sel': {
