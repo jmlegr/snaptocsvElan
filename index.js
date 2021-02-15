@@ -104,6 +104,23 @@ async function run() {
 
 
         ]
+        const aggVar=[
+            {
+                '$match':{'session_key': session,'commandes.snap.selector':/Var/,'commandes.snap.truc':/me/}
+            }, {
+                '$addFields': {
+                    'temps_adjust': {
+                        '$add': [
+                            '$commandes.temps', 1000
+                        ]
+                    },
+                    'acteur':'VARIABLE',
+                    'annotation':'$commandes.evt.type'
+                }
+            }, {
+                '$sort':{time:1}
+            }
+        ]
         const epr_max = await collection.findOne({}, {sort: {etape: -1}});
         const t_max = epr_max.commandes.temps + offset_temps; //temps de la dernièreaction EPR (normalement SNP+SAVE)
         //console.log("MAX TERMPS", t_max)
@@ -159,6 +176,46 @@ async function run() {
             });
             return r;
         })
+        //Opérations sur les variables
+        const chercheTete=(s,el)=>{
+            //  renvoi la tête de script + numéro de boucle (si contenu) + numéro d'instruction
+            let i=el
+            let conteneur=i.conteneurBlock
+            let nb=1
+            let boucle=0
+            while (i.prevBlock != null) {
+                nb+=1
+                i=s.find(d => d.JMLid == i.prevBlock)
+                conteneur=i.conteneurBlock
+            }
+            if (conteneur!=null && !conteneur.match(/SCRIPT/)) {
+                //on est dans une boucle, on cherche laquelle, on ne prend pas en compte les boucles imbriquée)
+                i=s.find(d => d.JMLid == conteneur)
+                console.log("find",i,conteneur)
+                boucle=1
+                if (i.selector != 'doRepeat') console.log('ERREUR PAS DANS UNE BOUCLE REPEAT')
+                while  (i.prevBlock!=null) {
+                    i=s.find(d => d.JMLid == i.prevBlock)
+                    if (i.selector=='doRepeat') boucle+=1
+                }
+            }
+            return {tete:i,contenu:conteneur?!conteneur.match(/SCRIPT/):false,nb:nb,boucle:boucle}
+        }
+        const promise4=collection.aggregate(aggVar).toArray().then(r=>{
+            r.forEach(e=>{
+                e.commandes.snap.forEach(c=>{
+                    if (c.selector !=null && c.selector.match(/Var/) && c.truc.match(/me/)) {
+                        const o=chercheTete(e.commandes.snap,c)
+                        const a=c.truc.match(/.*(<<.*>>).*/)
+                        //console.log(o, h2p(c.commande), a?a[1]:"",c.truc.match(/me (.*)/)[1])
+                        //console.log(o.contenu?"contenu b"+o.boucle:"","i"+o.nb)
+                        e.acteur='(VARIABLE)'+h2p(o.tete.commande)
+                        e.annotation=(o.contenu?"(b"+o.boucle:"(")+"i"+o.nb+") "+ h2p(c.commande)+" ["+c.truc.match(/me (.*)/)[1]+"]"
+                    }
+                })
+            })
+            return r
+        })
         const tocsvElan=result => {
             try {
                 const csv = parse(result, {
@@ -198,8 +255,9 @@ async function run() {
         promise2.then(tocsvElan);
         promise3.then(tocsvElan);
         promise3.then(tocsv("VAL"))
+        promise4.then(tocsv('VAR'))
         //console.log("wiat to finish")
-        await Promise.all([promise1,promise2,promise3])
+        await Promise.all([promise1,promise2,promise3,promise4])
         //console.log("finished")
     } finally {
         await client.close()
