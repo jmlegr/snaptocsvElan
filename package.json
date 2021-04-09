@@ -11,7 +11,10 @@
   "license": "ISC",
   "dependencies": {
     "json2csv": "^5.0.6",
-    "mongodb": "^3.6.4"
+    "mongodb": "^3.6.4",
+    "node-fetch": "^2.6.1",
+    "utf8": "^3.0.0",
+    "yargs": "^16.2.0"
   },
   "devDependencies": {
     "html2plaintext": "^2.1.2",
