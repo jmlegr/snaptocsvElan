@@ -19,7 +19,7 @@ async function run() {
         const database = client.db(dbName);
         const collection = database.collection(coll);
 
-        let session='imd2kp5g8wcnr49mqet8afczt6l4wf26'
+        let session='wrafil0cpbqpqc305rpkcjpuvxqzusj9'
         //const session=readlineSync.question('Numéro de session:');
         //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
         const offset_temps = 1000000; //décalage temporel pour synchronisation
@@ -166,7 +166,7 @@ async function run() {
                         || c.annotation=='PAUSE'
                         || c.annotation=='FIN' ) {
                         c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
-                        console.log('XXXXXXXXXXXXXXXX',c)
+                        //console.log('XXXXXXXXXXXXXXXX',c)
                         c.annotation+=' '+c.acteur
                         c.acteur='EXECUTION'
 
@@ -230,12 +230,12 @@ async function run() {
             const retour=[]
             r.forEach(e=>{
                 e.commandes.snap.forEach(c=>{
-                    if (c.selector !=null && c.selector.match(/Var/) && c.truc.match(/me/)) {
+                    if (c.selector !=null && c.selector.match(/Var/) && c.truc!=null && c.truc.match(/me/)) {
                         const o=chercheTete(e.commandes.snap,c)
                         const a=c.truc.match(/.*(<<.*>>).*/)
                         //console.log(o, h2p(c.commande), a?a[1]:"",c.truc.match(/me (.*)/)[1])
                         //console.log(o.contenu?"contenu b"+o.boucle:"","i"+o.nb)
-                        console.log('TETE',o.tete)
+                        //console.log('TETE',o.tete)
                         e.acteur='(VARIABLE)'+h2p(o.tete.commande)+'('+o.tete.JMLid+')'
                         e.annotation=(o.contenu?"(b"+o.boucle:"(")+"i"+o.nb+") "+ h2p(c.commande)+" ["+c.truc.match(/me (.*)/)[1]+"]"
                         e.temps_fin=Math.min(e.temps_adjust+duree,t_max);
