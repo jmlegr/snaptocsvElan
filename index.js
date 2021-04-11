@@ -22,7 +22,7 @@ async function run() {
         let session='wrafil0cpbqpqc305rpkcjpuvxqzusj9'
         //const session=readlineSync.question('Numéro de session:');
         //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
-        let offset_temps = 1000000; //décalage temporel pour synchronisation ou pour suite fichiers
+        let offset_temps = 0; //décalage temporel pour synchronisation
 
         //const duree = readlineSync.questionInt("Durée de base d'un évènement? (en millisecondes) ");
         const duree = 1000; //dureee de base d'un evenement pour ELAN
@@ -199,7 +199,8 @@ async function run() {
                     if (c.annotation=='START'
                         || c.annotation=='STOP'
                         || c.annotation=='PAUSE'
-                        || c.annotation=='FIN' ) {
+                        || c.annotation=='FIN'
+                        || c.annotation=='REPR') {
                         c.temps=debut_temps+c.temps_adjust
                         c.temps_string=new Date(c.temps).toISOString()
                         c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
