@@ -19,7 +19,7 @@ async function run() {
         const database = client.db(dbName);
         const collection = database.collection(coll);
 
-        let session='wrafil0cpbqpqc305rpkcjpuvxqzusj9'
+        let session='5jx5e2cmwpzj6q3uuwmct9nuqi0mwt74'
         //const session=readlineSync.question('Numéro de session:');
         //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
         let offset_temps = 0; //décalage temporel pour synchronisation
@@ -28,14 +28,14 @@ async function run() {
         const duree = 1000; //dureee de base d'un evenement pour ELAN
         //const nomFic=readlineSync.question("Nom de fichier csv? ");
         let nomFic="test_";
-        const options = yargs
+        /*const options = yargs
             .usage("Usage: -s <session>, -f <nomfic>")
             .option("s", { alias: "session", describe: "Session", type: "string", demandOption: true })
             .option("f",{ alias: "nomfic", describe: "Nom de fichier (base)", type: "string", demandOption: false })
             .argv;
         if (options.nomfic) nomFic=options.nomfic
         session=options.session
-
+*/
 
         const epr_max = await collection.findOne({}, {sort: {etape: -1}});
         const t_max = epr_max.commandes.temps + offset_temps; //temps de la dernièreaction EPR (normalement SNP+SAVE)
@@ -203,7 +203,12 @@ async function run() {
                         || c.annotation=='REPR') {
                         c.temps=debut_temps+c.temps_adjust
                         c.temps_string=new Date(c.temps).toISOString()
-                        c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
+                        //on fixe les temps de fin des exécutions
+                        if (c.annotation=='STOP' || c.annotation=='FIN') {
+                            c.temps_fin=''
+                        } else {
+                            c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
+                        }
                         c.annotation+=' '+c.acteur
                         const tete=c.acteur.match(/.*\((.*)\).*/)
                         c.idScript=tete?tete[1]:'??'
@@ -219,7 +224,12 @@ async function run() {
                         //console.log("YYYY",c,a)
                         c.temps=debut_temps+c.temps_adjust
                         c.temps_string=new Date(c.temps).toISOString()
-                        c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
+                        //on fixe le temps de fin seulement pour 'ASK'
+                        if (c.annotation=='ASK') {
+                            c.temps_fin = i + 1 < a.length ? a[i + 1].temps_adjust : t_max;
+                        } else {
+                            c.temps_fin=''
+                        }
                     } else {
                         //console.log("ZZZZZZZ",c)
                         c.idScript='ZZZZ'
@@ -283,7 +293,8 @@ async function run() {
                         e.annotation=(o.contenu?"(b"+o.boucle:"(")+"i"+o.nb+") "+ h2p(c.commande)+" ["+c.truc.match(/me (.*)/)[1]+"]"
                         e.temps=debut_temps+e.temps_adjust
                         e.temps_string=new Date(e.temps).toISOString()
-                        e.temps_fin=Math.min(e.temps_adjust+duree,t_max);
+                        //on ne met plus de temps_fin, ce sera fait à l'import
+                        // e.temps_fin=Math.min(e.temps_adjust+duree,t_max);
                         retour.push(e)
                     }
                 })
