@@ -294,7 +294,7 @@ async function run() {
                         e.temps=debut_temps+e.temps_adjust
                         e.temps_string=new Date(e.temps).toISOString()
                         //on ne met plus de temps_fin, ce sera fait à l'import
-                        // e.temps_fin=Math.min(e.temps_adjust+duree,t_max);
+                        // node.js mysqle.temps_fin=Math.min(e.temps_adjust+duree,t_max);
                         retour.push(e)
                     }
                 })
