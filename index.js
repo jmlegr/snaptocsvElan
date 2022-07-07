@@ -12,6 +12,8 @@ const readlineSync = require('readline-sync');
 
 const client = new MongoClient(url,{ useUnifiedTopology: true });
 
+const cheminMedia='/home/duff/Serveur/DjangoSnap2021'
+
 async function run() {
     try {
 
@@ -19,7 +21,7 @@ async function run() {
         const database = client.db(dbName);
         const collection = database.collection(coll);
 
-        let session='5jx5e2cmwpzj6q3uuwmct9nuqi0mwt74'
+        let session='wq2cu9duflxspderesgz57qr8t05w8jf'
         //const session=readlineSync.question('Numéro de session:');
         //const offset_temps=readlineSync.questionInt("Offset de décalage (en millisecondes)? ");
         let offset_temps = 0; //décalage temporel pour synchronisation
@@ -41,7 +43,7 @@ async function run() {
         const t_max = epr_max.commandes.temps + offset_temps; //temps de la dernièreaction EPR (normalement SNP+SAVE)
         //console.log("MAX TERMPS", t_max)
 
-        let aggVar, aggVal, aggEPR, aggENV,debut_temps
+        let aggVar, aggVal, aggEPR, aggENV,debut_temps, aggSnp
         await collection.findOne({session_key:session,commandes:{$exists:false}}).then(infos=> {
             console.log("Traitement de la session:", session)
             console.log(infos.user, " le ", infos.infos.date)
@@ -103,6 +105,44 @@ async function run() {
                     '$project': {'commandes':0}
                 }
             ];
+            aggSnp=[
+                {
+                    '$match': {
+                        'session_key': session,
+                        'commandes.epr': {
+                            '$ne': null
+                        },
+                        'commandes.epr.type': 'SNP',
+                        'commandes.epr.detail': {
+                            '$regex': new RegExp('^(?!START)')
+                        }
+                    }
+                }, {
+                    '$addFields': {
+                        'temps_adjust': {
+                            '$add': [
+                                '$commandes.temps', offset_temps
+                            ]
+                        },
+                        'truc': {
+                            '$concat': [
+                                '$commandes.epr.type', '--', '$commandes.epr.detail'
+                            ]
+                        },
+                        'acteur': '$commandes.epr.detail',
+                        'annotation': '$commandes.evt.type',
+                        'image': {
+                            '$concat': [
+                                cheminMedia, '$commandes.epr.snp.image'
+                            ]
+                        }
+                    }
+                }, {
+                    '$project': {
+                        'commandes': 0
+                    }
+                }
+            ]
             aggVal=[
                 {
                     '$match':{'session_key': session,'commandes.evt.type':/VAL/}
@@ -295,21 +335,39 @@ async function run() {
                         e.temps_string=new Date(e.temps).toISOString()
                         //on ne met plus de temps_fin, ce sera fait à l'import
                         // node.js mysqle.temps_fin=Math.min(e.temps_adjust+duree,t_max);
+                        console.log("var",e.etape)
                         retour.push(e)
                     }
                 })
             })
             return retour
         })
+        const promise5=collection.aggregate(aggSnp).toArray().then(r=>{
+            //console.log('SNP',r)
+            r.forEach(c=>{
+                c.temps=debut_temps+c.temps_adjust
+                c.temps_string=new Date(c.temps).toISOString()
+                //on fixe les temps de fin des exécutions
+                c.temps_fin=''
+                c.annotation+=' '+c.acteur
+                const tete=c.acteur.match(/.*\((.*)\).*/)
+                c.idScript=tete?tete[1]:'??'
+                c.nomScript=c.acteur
+                c.acteur='SNAP'
+            })
+            return r;
+
+        })
         const tocsvElan=result => {
             try {
                 const csv = parse(result, {
-                    fields: ["acteur","nomScript","idScript","temps","temps_string",
+                    fields: ["etape","acteur","nomScript","idScript","temps","temps_string",
                         "temps_adjust", "temps_fin",
-                        "annotation"],
+                        "annotation",'image'],
                     header: false,
                 });
                 fs.appendFileSync(nomFic+".csv", csv+'\n');
+                console.log('crfiture'+nomFic)
             } catch (err) {
                 console.error(err);
             }
@@ -335,7 +393,8 @@ async function run() {
         promise2.then(tocsvElan);
         promise3.then(tocsvElan);
         promise4.then(tocsvElan);
-        await Promise.all([promise1, promise2, promise3, promise4])
+        promise5.then(tocsvElan);
+        await Promise.all([promise1, promise2, promise3, promise4,promise5])
 /*
         //promise3.then(tocsv("VAL"))
        // promise4.then(tocsv('VAR'))
